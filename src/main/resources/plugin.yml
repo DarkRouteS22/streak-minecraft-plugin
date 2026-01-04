@@ -1,0 +1,5 @@
+name: streak
+version: '0.1'
+main: dark.streak.Streak
+api-version: '1.21'
+authors: [ DarkRouteS22 ]
