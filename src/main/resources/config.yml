@@ -1,0 +1,15 @@
+# Time values are in minutes
+daily-playtime: [ 15, 20, 25, 30 ]
+recovery-playtime: 300
+max-freezes: 2
+
+database:
+  host: "localhost"
+  port: 3306
+  name: "name"
+  user: "user"
+  password: "password"
+  use-ssl: true
+
+streak-help-message: ""
+

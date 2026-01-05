@@ -4,3 +4,5 @@ gradle
 build
 gradlew
 gradlew.bat
+src/main/resources/streak.sk
+run
