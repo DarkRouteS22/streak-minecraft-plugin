@@ -1,15 +1,16 @@
 package dark.streak;
 
+import dark.streak.databaseEntities.PlayerData;
+import dark.streak.databaseEntities.Session;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
+import java.time.LocalDate;
+import java.util.UUID;
 
 
 public class DatabaseManager {
-    private JavaPlugin plugin;
+    private final JavaPlugin plugin;
     private String jdbcUrl;
     private String user;
     private String password;
@@ -23,7 +24,7 @@ public class DatabaseManager {
         String host = plugin.getConfig().getString("database.host");
         int port = plugin.getConfig().getInt("database.port");
         String name = plugin.getConfig().getString("database.name");
-        boolean ssl = plugin.getConfig().getBoolean("database.SSL");
+        boolean ssl = plugin.getConfig().getBoolean("database.use-ssl");
 
         this.user = plugin.getConfig().getString("database.user");
         this.password = plugin.getConfig().getString("database.password");
@@ -39,8 +40,19 @@ public class DatabaseManager {
                 uuid CHAR(36) PRIMARY KEY,
                 current_streak INT NOT NULL,
                 best_streak INT NOT NULL,
-                freezes_used INT NOT NULL,
-                last_completed_day DATE NOT NULL
+                freezes INT NOT NULL,
+                last_completed_day DATE NOT NULL,
+                streak_status INT NOT NULL,
+                all_playtime INT NOT NULL
+            );
+            """;
+
+        String session = """
+            CREATE TABLE IF BOT EXISTS session (
+                uuid CHAR(36) PRIMARY KEY,
+                playtime INT NOT NULL,
+                want_to_play INT NOT NULL,
+                PRIMARY KEY (uuid)
             );
             """;
 
@@ -58,14 +70,77 @@ public class DatabaseManager {
 
             st.execute(playerStreaks);
             st.execute(streakDays);
+            st.execute(session);
 
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error creating MySQL tables");
+            plugin.getLogger().severe("Error creating MySQL tables or connecting to DataBase");
             e.printStackTrace();
         }
     }
 
     public Connection getConnection() throws SQLException {
         return DriverManager.getConnection(jdbcUrl, user, password);
+    }
+
+    public Session createSession(UUID uuid) {
+        return null;
+    }
+
+    public Session getSession(UUID uuid) throws SQLException {
+        String selectSQL = "SELECT * FROM session WHERE uuid = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement selectStmt = conn.prepareStatement(selectSQL)) {
+            selectStmt.setString(1, uuid.toString());
+
+            try (ResultSet rs = selectStmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Session(
+                            uuid,
+                            rs.getInt("want_to_play"),
+                            rs.getInt("playtime")
+                    );
+                } else { return null; }
+            }
+        }
+    }
+
+    public PlayerData getPlayerData(UUID uuid) throws SQLException {
+        String selectSQL = "SELECT * FROM player_streaks WHERE uuid = ?";
+        String insertSQL = "INSERT INTO player_streaks " +
+                "(uuid, current_streak, best_streak, freezes, last_completed_day, streak_status, all_playtime) " +
+                "VALUES (?, 0, 0, 0, CURDATE(), 0, 0)";
+
+        try (Connection conn = getConnection();
+             PreparedStatement selectStmt = conn.prepareStatement(selectSQL)) {
+             selectStmt.setString(1, uuid.toString());
+
+             try (ResultSet rs = selectStmt.executeQuery()) {
+                 if (rs.next()) {
+                     return new PlayerData(
+                             uuid,
+                             rs.getDate("last_completed_day").toLocalDate(),
+                             rs.getInt("current_streak"),
+                             rs.getInt("best_streak"),
+                             rs.getInt("freezes"),
+                             rs.getInt("all_playtime"),
+                             rs.getInt("streak_status")
+                     );
+                 } else {
+                     try (PreparedStatement insertStmt = conn.prepareStatement(insertSQL)) {
+                         insertStmt.setString(1, uuid.toString());
+                         insertStmt.executeUpdate();
+                     }
+                     return new PlayerData(
+                             uuid,
+                             LocalDate.now(),
+                             0,
+                             0,
+                             0,
+                             0,
+                             0
+                     );
+                 }
+             }
+        }
     }
 }
